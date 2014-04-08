@@ -1,0 +1,260 @@
+/*The license for this code GNU GPLv3. It is free and open source!*/
+
+
+//note to self: process goes: use the converter in vidcon to convert the files to AVI (click preset output then select common video types then scroll and select AVI) with the xvid codec
+//(which on the bottom right and should work because I installed the plugin and all that) and a smaller video size and bitrate (like 320x240 and 256 bps). Then put that into VirtualDub
+//and go to file>export>image sequence (making sure its in .png) and drop the images in data. Then change the digits and frame amounts and run this program.
+//ALL IMAGES MUST BE SAME SIZE
+import java.io.File;
+int t, itImNT, itAn, temp, ma, mi, barlen = 1000, delGroup = 100, dTot;
+float ric = .2126, gic = .7125, bic = .0722, divIBy = ric+gic+bic, avgI, cntri, satP, satF;
+float inF;
+String fn;
+//float in[] = new float[0];
+int PAmnt = 10;//10's kinda random, but whatever
+PImage p[] = new PImage[PAmnt];
+color c;
+int numMov = 1;//number of movies producing at same time;
+float inTot[] = new float[numMov];
+float cntrTot[] = new float[numMov];
+float satTot[] = new float[numMov];
+boolean set[] = new boolean[numMov];
+int w[] = new int[numMov];
+int h[] = new int[numMov];
+int wh[] = new int[numMov];
+int tot[] = new int[numMov];
+String totS[] = new String[numMov];
+String MP[] = {
+  "satPic"//"b1", "b2", "b3", "b4", "h1", "h2", "h3", "h4"
+};
+int curMov;
+int amntDig[] = {
+  1//, 7, 7, 7, 7, 7, 7, 7
+};
+String amntDigS[] = new String[amntDig.length];////////MAKE SURE THIS IS THE RIGHT AMOUNT OF DIGITS
+int totFrm[] = {
+  1//238862, 261410, 185541, 188272, 254309, 219133, 204270, 153824
+};
+//int amntFrm = ;//MAKE SURE THIS IS THE RIGHT AMOUNT OF TOTAL FRAMES.
+String repS[] = new String[1];
+boolean reqI = true;//if requesting and image is ok
+RGBStr[] s = new RGBStr[numMov];
+
+void setup()
+{
+  size(100, 100);
+  for (int i = 0; i < numMov; i++)
+  {
+    s[i] = new RGBStr();
+  }
+}
+
+void draw()
+{
+  t = millis();
+  for (int i = 0; i < numMov; i++)
+  {
+    println(MP[i]+": "+constrain(100*(tot[i]/float(totFrm[i])), 0, 100)+"%");
+  }
+  temp++;
+  for (int i = tot[curMov]; i < totFrm[curMov]+1 && millis()-t < 33; i++)
+  {
+    if (set[curMov])
+    {
+      anly();
+    }
+    else
+    {
+      setP(curMov);
+    }
+    curMov = (curMov+1)%numMov;
+  }
+}
+
+void setP(int i)
+{
+  fn = MP[i]+nf(1, amntDig[i])+".png";
+  p[0] = loadImage(fn);
+  if (p[0] != null)
+  {
+    fn = MP[i]+nf(0, amntDig[i])+".png";
+    p[0] = loadImage(fn);
+    fn = MP[i]+nf(0, amntDig[i])+".png";
+    p[0] = loadImage(fn);
+    w[i] = p[0].width;
+    h[i] = p[0].height;
+    wh[i] = w[i]*h[i];
+    s[i].re = expand(s[curMov].re, wh[i]);
+    s[i].gr = expand(s[curMov].gr, wh[i]);
+    s[i].bl = expand(s[curMov].bl, wh[i]);
+    s[i].reF = expand(s[curMov].reF, h[i]*totFrm[i]/barlen);//ITS THIS ONE ITS THIS ONE ITS THIS ONE
+    s[i].grF = expand(s[curMov].grF, h[i]*totFrm[i]/barlen);
+    s[i].blF = expand(s[curMov].blF, h[i]*totFrm[i]/barlen);
+    s[i].in = expand(s[curMov].in, wh[i]);
+    s[i].hue = expand(s[curMov].hue, h[i]*barlen);
+    set[i] = true;
+  }
+}
+
+
+
+void anly()
+{
+  if (totFrm[curMov]+1 == tot[curMov] || mousePressed)
+  {
+    rprt(curMov);
+    tot[curMov]++;
+  }
+  else if (totFrm[curMov] >= tot[curMov])
+  {
+    if (imLd())
+    {
+      rawPx();
+      RGBAvg();
+      inTot[curMov]+=intns();
+      cntrTot[curMov]+=cntrs();
+      satTot[curMov]+=sat();
+      if (tot[curMov]%(totFrm[curMov]/barlen)==1 && tot[curMov]/(totFrm[curMov]/barlen) < barlen)
+        strBar();
+      g.removeCache(p[0]);
+      tot[curMov]++;
+    }
+  }
+}
+
+void rprt(int cm)
+{
+  float avgIn = inTot[cm]/float(totFrm[curMov]+1), avgCn = cntrTot[cm]/float(totFrm[curMov]+1), avgSt = satTot[cm]/float(totFrm[curMov]+1);
+  /*println(MP[cm]+":");
+   println("Brightness: "+avgIn);
+   println("Constrast: "+avgCn);
+   println("Saturation: "+avgSt);*/
+   println("SDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD");
+  repS[0] = MP[cm]+":\nBrightness: "+avgIn+"\nConstrast: "+avgCn+"\nSaturation: "+avgSt;
+  saveStrings(MP[cm]+" Report.txt", repS);
+  saveStrings(MP[cm]+" Bar.txt", s[cm].hue);
+}
+
+boolean imLd()
+{
+  fn = MP[curMov]+nf(tot[curMov], amntDig[curMov])+".png";
+  p[0] = loadImage(fn);
+  if (p[0] != null)
+  {
+    if (p[0].pixels.length != wh[curMov])
+      return false;
+    return true;
+  }
+  return false;
+}
+
+void rawPx()
+{
+  for (int i = 0 ; i < wh[curMov]; i++)
+  {
+    c = p[0].pixels[i];
+    s[curMov].re[i] = int(red(c));
+    s[curMov].gr[i] = int(green(c));
+    s[curMov].bl[i] = int(blue(c));
+  }
+}
+
+void RGBAvg()
+{
+  int temp1 = 0, temp2 = 0, temp3 = 0, temp4 = 0, temp5 = 0, temp6 = 0;
+  for (int j = 0; j < h[curMov]; j++)
+  {
+    temp1 = 0;
+    temp2 = 0;
+    temp3 = 0;
+    for (int i = 0 ; i < w[curMov]; i++)
+    {
+      temp5 = i+w[curMov]*j;
+      temp1 += s[curMov].re[i+w[curMov]*j];
+      temp2 += s[curMov].gr[i+w[curMov]*j];
+      temp3 += s[curMov].bl[i+w[curMov]*j];
+    }
+    temp4 = tot[curMov]%(totFrm[curMov]/barlen);
+    temp6 = j+h[curMov]*temp4;
+    s[curMov].reF[temp6] = temp1;
+    s[curMov].grF[temp6] = temp2;
+    s[curMov].blF[temp6] = temp3;
+  }
+}
+
+float intns()
+{
+  inF = 0;
+  for (int i = 0; i < p[0].pixels.length; i++)
+  {
+    s[curMov].in[i] = ric*s[curMov].re[i]+gic*s[curMov].gr[i]+bic*s[curMov].bl[i];
+    inF += s[curMov].in[i];
+  }
+  avgI = inF/(float(p[0].pixels.length));
+  return avgI;
+}
+
+float cntrs()
+{
+  cntri = 0;
+  for (int i = 0; i < p[0].pixels.length; i++)
+  {
+    cntri += sq(s[curMov].in[i]-avgI);
+  }
+  return cntri/(float(p[0].pixels.length));
+  //println(sqrt((cntri/float(p[0].pixels.length))));
+  //hey reddit: I just took a look and this code and released I put the "sqrt" in the comment but I don't think it was in the actual code.
+}
+
+float sat()
+{
+  satF = 0;
+  for (int i = 0; i < p[0].pixels.length; i++)
+  {
+    ma = max(s[curMov].re[i], s[curMov].gr[i], s[curMov].bl[i]);
+    mi = min(s[curMov].re[i], s[curMov].gr[i], s[curMov].bl[i]);
+    //to reddit: this if/else block seems kinda pointless, but there probably should have been a special case for complete black (0,0,0) where ma would have been 0 and a divide by 0 error would have occured . Apparently there was never a completely black pixel probably because of how terrible the image wuality was.
+    if (ma - mi >= 1)
+    {
+      satP = (ma-mi)/float(ma);
+    }
+    else
+    {
+      satP = 0;
+    }
+    satF += satP;
+  }
+  return satF/(float(p[0].pixels.length));
+}
+
+void strBar()
+{
+  int temp1 = 0, temp2 = 0, temp3 = 0;
+  float temp4 = 0;
+  for (int j = 0; j < h[curMov]; j++)
+  {
+    temp1 = 0;
+    temp2 = 0;
+    temp3 = 0;
+    for (int i = 0 ; i < (totFrm[curMov]/barlen); i++)
+    {
+      temp1 += s[curMov].reF[i*h[curMov]+j];
+      temp2 += s[curMov].grF[i*h[curMov]+j];
+      temp3 += s[curMov].blF[i*h[curMov]+j];
+    }
+    temp4 = 1/float(s[curMov].reF.length);
+    s[curMov].hue[j+h[curMov]*(tot[curMov]/(totFrm[curMov]/barlen))] = ""+color(temp1*temp4, temp2*temp4, temp3*temp4);
+  }
+}
+
+class RGBStr
+{
+  int re[] = new int[0];
+  int gr[] = new int[0];
+  int bl[] = new int[0];
+  int reF[] = new int[0];
+  int grF[] = new int[0];
+  int blF[] = new int[0];
+  float in[] = new float[0];
+  String hue[] = new String[0];
+}
